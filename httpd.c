@@ -99,7 +99,7 @@ void *accept_request(void *tclient)
   		{
    			cgi = 1;	//second place
    			*query_string = '\0';
-   			query_string++i;	//parameter section and anchor section
+   			query_string++;	//parameter section and anchor section
   		}
  	}
 
@@ -481,7 +481,7 @@ void unimplemented(int client)	//only implement two method
 
 /**********************************************************************/
 
-int main(int argc, char ** argv)
+int main(void)
 {
 	int server_sock = -1;	//server socket file descriptor
  	u_short port = 0;		//maybe just a integer type
