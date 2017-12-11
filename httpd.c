@@ -260,8 +260,8 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
   		char query_env[255];
   		char length_env[255];
 
-  		dup2(cgi_output[1], 1);
-  		dup2(cgi_input[0], 0);
+  		dup2(cgi_output[1], 1);	//redirect to stdout
+  		dup2(cgi_input[0], 0);	//redirect to stdin
   		close(cgi_output[0]);
   		close(cgi_input[1]);
   		sprintf(meth_env, "REQUEST_METHOD=%s", method);
