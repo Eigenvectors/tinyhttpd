@@ -48,14 +48,16 @@ void unimplemented(int);
  * return.  Process the request appropriately.
  * Parameters: the socket connected to the client */
 /**********************************************************************/
-void *accept_request(void *tclient)
+void *accept_request(void *tclient)		//new thread must execute this kind function
 {
  	int client = *(int *)tclient;	//force type convert
  	char buf[1024];
  	int numchars;
+
  	char method[255];
  	char url[255];
  	char path[512];
+
  	size_t i, j;
  	struct stat st;
  	int cgi = 0;      /* becomes true if server decides this is a CGI
@@ -69,7 +71,7 @@ void *accept_request(void *tclient)
   		method[i] = buf[j];	//the array is used to store http method
   		i++; j++;
  	}
- 	method[i] = '\0';
+ 	method[i] = '\0';	//get method character from request line
 
  	if (strcasecmp(method, "GET") && strcasecmp(method, "POST"))	//only implement two method
  	{
@@ -78,7 +80,7 @@ void *accept_request(void *tclient)
  	}
 
  	if (strcasecmp(method, "POST") == 0)	//this is a CGI program
-  		cgi = 1;	//first place
+  		cgi = 1;	//first place	POST method need cgi program
 
  	i = 0;
  	while (ISspace(buf[j]) && (j < sizeof(buf)))	//skip all blank characters
@@ -88,7 +90,7 @@ void *accept_request(void *tclient)
   		url[i] = buf[j];
   		i++; j++;
  	}
- 	url[i] = '\0';
+ 	url[i] = '\0';	//get url from request line
 
  	if (strcasecmp(method, "GET") == 0)
  	{
@@ -97,29 +99,30 @@ void *accept_request(void *tclient)
    			query_string++;
   		if (*query_string == '?')
   		{
-   			cgi = 1;	//second place
+   			cgi = 1;	//second place		sometime GET method need cgi program
    			*query_string = '\0';
    			query_string++;	//parameter section and anchor section
   		}
  	}
 
- 	sprintf(path, "htdocs%s", url);		//store the string into path 
- 	if (path[strlen(path) - 1] == '/')	//user don't supply file name
-  		strcat(path, "index.html");		//use the default html file
- 	if (stat(path, &st) == -1) 	//get the status of file failed
-	{
-  		while ((numchars > 0) && strcmp("\n", buf))  /* read & discard headers */
+ 	sprintf(path, "htdocs%s", url);		//the file name is store into path
+ 	if (path[strlen(path) - 1] == '/')	//if user don't supply file name, use the default file name
+  		strcat(path, "index.html");
+ 	if (stat(path, &st) == -1) 	//if get the status of file is failed, read & discard request headers
+	{							
+  		while ((numchars > 0) && strcmp("\n", buf))  /* read & discard request headers */
    			numchars = get_line(client, buf, sizeof(buf));
   		not_found(client);
  	}
  	else
  	{
-  		if ((st.st_mode & S_IFMT) == S_IFDIR)	//path is a directory
+  		if ((st.st_mode & S_IFMT) == S_IFDIR)	//path is a directory 	It's impossible?????????????
    			strcat(path, "/index.html");
   		if ((st.st_mode & S_IXUSR) || (st.st_mode & S_IXGRP) || (st.st_mode & S_IXOTH))	//anyone can execute the file
-   			cgi = 1;	//third place
+   			cgi = 1;	//third place		html file can't execute
   		if (!cgi)	//if the program is not a cgi program, send the regular file to client
-   			serve_file(client, path);
+   			serve_file(client, path);	/* if the request is not POST, don't supply parameter and the file can't
+										   be executed, the server will send the html file to client directly */
   		else	//cgi program
    			execute_cgi(client, path, method, query_string);
  	}
@@ -136,13 +139,13 @@ void bad_request(int client)
 {
  	char buf[1024];
 
- 	sprintf(buf, "HTTP/1.0 400 BAD REQUEST\r\n");
+ 	sprintf(buf, "HTTP/1.0 400 Bad Request\r\n");	//send back status line
  	send(client, buf, sizeof(buf), 0);
- 	sprintf(buf, "Content-type: text/html\r\n");
+ 	sprintf(buf, "Content-type: text/html\r\n");	//send back message headers
  	send(client, buf, sizeof(buf), 0);
  	sprintf(buf, "\r\n");
  	send(client, buf, sizeof(buf), 0);
- 	sprintf(buf, "<P>Your browser sent a bad request, ");
+ 	sprintf(buf, "<P>Your browser sent a bad request, ");	//send back response text
  	send(client, buf, sizeof(buf), 0);
  	sprintf(buf, "such as a POST without a Content-Length.\r\n");
  	send(client, buf, sizeof(buf), 0);
@@ -162,7 +165,7 @@ void cat(int client, FILE *resource)
  	fgets(buf, sizeof(buf), resource);
  	while (!feof(resource))
  	{
-  		send(client, buf, strlen(buf), 0);
+  		send(client, buf, strlen(buf), 0);	//don't send '\0'
   		fgets(buf, sizeof(buf), resource);
  	}
 }
@@ -214,14 +217,14 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
  	int numchars = 1;
  	int content_length = -1;
 
- 	buf[0] = 'A'; buf[1] = '\0';	//why????????????????????
+ 	buf[0] = 'A'; buf[1] = '\0';
  	if (strcasecmp(method, "GET") == 0)
-  		while ((numchars > 0) && strcmp("\n", buf))  /* read & discard headers */
+  		while ((numchars > 0) && strcmp("\n", buf))  /* read & discard request headers */
    			numchars = get_line(client, buf, sizeof(buf));
  	else    /* POST */
  	{
-  		numchars = get_line(client, buf, sizeof(buf));
-  		while ((numchars > 0) && strcmp("\n", buf))	/* read & discard headers */
+  		numchars = get_line(client, buf, sizeof(buf));	//read request headers
+  		while ((numchars > 0) && strcmp("\n", buf))		//only get the Content-Length from request headers
   		{
    			buf[15] = '\0';
    			if (strcasecmp(buf, "Content-Length:") == 0)
@@ -235,7 +238,7 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
   		}
  	}
 
- 	sprintf(buf, "HTTP/1.0 200 OK\r\n");
+ 	sprintf(buf, "HTTP/1.0 200 OK\r\n");	//send back status line
  	send(client, buf, strlen(buf), 0);
 
  	if (pipe(cgi_output) < 0) 
@@ -268,7 +271,7 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
   		putenv(meth_env);
   		if (strcasecmp(method, "GET") == 0) 
 		{
-   			sprintf(query_env, "QUERY_STRING=%s", query_string);
+   			sprintf(query_env, "QUERY_STRING=%s", query_string);	//include parameter and anchor
    			putenv(query_env);
   		}
   		else 
@@ -276,7 +279,7 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
    			sprintf(length_env, "CONTENT_LENGTH=%d", content_length);
    			putenv(length_env);
   		}
-  		execl(path, path, NULL);
+  		execl(path, path, NULL);	//execute cgi script
   		exit(0);
  	} 
 	else 
@@ -286,10 +289,10 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
   		if (strcasecmp(method, "POST") == 0)
    			for (i = 0; i < content_length; i++) 
 			{
-    			recv(client, &c, 1, 0);
+    			recv(client, &c, 1, 0);		//read request data from client
     			write(cgi_input[1], &c, 1);
    			}
-  		while (read(cgi_output[0], &c, 1) > 0)
+  		while (read(cgi_output[0], &c, 1) > 0)		//there are some problems????????????????
    			send(client, &c, 1, 0);
 
   		close(cgi_output[0]);
@@ -311,10 +314,10 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
  *             the size of the buffer
  * Returns: the number of bytes stored (excluding null) */
 /**********************************************************************/
-int get_line(int sock, char *buf, int size)	//the string end of '\r\n' or '\n'
+int get_line(int sock, char *buf, int size)	//all string be sotre in buf end of '\n' and '\0'
 {
  	int i = 0;
- 	char c = '\0';
+ 	char c = '\0';	//'\0' is null character
  	int n;
 
  	while ((i < size - 1) && (c != '\n'))	//remain a store unit for '\0'
@@ -327,10 +330,10 @@ int get_line(int sock, char *buf, int size)	//the string end of '\r\n' or '\n'
    			{
     			n = recv(sock, &c, 1, MSG_PEEK);
    				/* DEBUG printf("%02X\n", c); */
-    			if ((n > 0) && (c == '\n'))		//encounter CRLF
+    			if ((n > 0) && (c == '\n'))	
      				recv(sock, &c, 1, 0);
     			else
-     				c = '\n';	//add '\n' by myself
+     				c = '\n';
    			}
    			buf[i] = c;
    			i++;
@@ -353,13 +356,13 @@ void headers(int client, const char *filename)
  	char buf[1024];
  	(void)filename;  /* could use filename to determine file type */
 
- 	strcpy(buf, "HTTP/1.0 200 OK\r\n");
+ 	strcpy(buf, "HTTP/1.0 200 OK\r\n");	//send back the status line
  	send(client, buf, strlen(buf), 0);
- 	strcpy(buf, SERVER_STRING);
+ 	strcpy(buf, SERVER_STRING);			//send back the message headers
  	send(client, buf, strlen(buf), 0);
  	sprintf(buf, "Content-Type: text/html\r\n");
  	send(client, buf, strlen(buf), 0);
- 	strcpy(buf, "\r\n");
+ 	strcpy(buf, "\r\n");				//send back blank line
  	send(client, buf, strlen(buf), 0);
 }
 
@@ -399,15 +402,15 @@ void not_found(int client)
 /**********************************************************************/
 void serve_file(int client, const char *filename)
 {
- 	FILE *resource = NULL;
+ 	FILE *resource = NULL;		//file pointer
  	int numchars = 1;
  	char buf[1024];
 
  	buf[0] = 'A'; buf[1] = '\0';
- 	while ((numchars > 0) && strcmp("\n", buf))  /* read & discard headers */
+ 	while ((numchars > 0) && strcmp("\n", buf))  /* read & discard request headers */
   		numchars = get_line(client, buf, sizeof(buf));
 
- 	resource = fopen(filename, "r");
+ 	resource = fopen(filename, "r");	//open a file on only read mode
  	if (resource == NULL)
   		not_found(client);
  	else
@@ -429,25 +432,25 @@ void serve_file(int client, const char *filename)
 int startup(u_short *port)
 {
  	int httpd = 0;
- 	struct sockaddr_in name;	//server address struct
+ 	struct sockaddr_in server_name;	//server address struct
 
  	httpd = socket(PF_INET, SOCK_STREAM, 0);	//use TCP 
  	if (httpd == -1)
   		error_die("socket");
- 	memset(&name, 0, sizeof(name));
- 	name.sin_family = AF_INET;
- 	name.sin_port = htons(*port);
- 	name.sin_addr.s_addr = htonl(INADDR_ANY);	//use random local ip address
- 	if (bind(httpd, (struct sockaddr *)&name, sizeof(name)) < 0)
-  		error_die("bind");
+ 	memset(&server_name, 0, sizeof(server_name));
+ 	server_name.sin_family = AF_INET;
+ 	server_name.sin_port = htons(*port);
+ 	server_name.sin_addr.s_addr = htonl(INADDR_ANY);	//use random local ip address
+ 	if (bind(httpd, (struct sockaddr *)&server_name, sizeof(server_name)) < 0) 
+  		error_die("bind");		//bind socket with address struct
  	if (*port == 0)  /* if dynamically allocating a port */
  	{
-  		socklen_t namelen = sizeof(name);
-  		if (getsockname(httpd, (struct sockaddr *)&name, &namelen) == -1)	//get the actual port number
+  		socklen_t namelen = sizeof(server_name);
+  		if (getsockname(httpd, (struct sockaddr *)&server_name, &namelen) == -1)	//get the actual port number
    			error_die("getsockname");
-  		*port = ntohs(name.sin_port);
+  		*port = ntohs(server_name.sin_port);
  	}
- 	if (listen(httpd, 5) < 0)	//maximum 5 connection request wait to accept
+ 	if (listen(httpd, 5) < 0)	//maximum 5 connection request wait to accept in queue
   		error_die("listen");
  	return(httpd);
 }
@@ -488,7 +491,7 @@ int main(void)
  	int client_sock = -1;
  	struct sockaddr_in client_name;		//address struct
  	socklen_t client_name_len = sizeof(client_name);	//the length of address struct
- 	pthread_t newthread;	//????????????????????
+ 	pthread_t newthread;	
 
  	server_sock = startup(&port);
  	printf("httpd running on port %d\n", port);		//this port is dynamical allocate
