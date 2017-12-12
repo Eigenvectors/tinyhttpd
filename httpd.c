@@ -279,7 +279,7 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
    			sprintf(length_env, "CONTENT_LENGTH=%d", content_length);
    			putenv(length_env);
   		}
-  		execl(path, path, NULL);	//execute cgi script
+  		execl(path, path, NULL);	//execute cgi script	how can I output the execute result?????
   		exit(0);
  	} 
 	else 
@@ -290,10 +290,10 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
    			for (i = 0; i < content_length; i++) 
 			{
     			recv(client, &c, 1, 0);		//read request data from client
-    			write(cgi_input[1], &c, 1);
+    			write(cgi_input[1], &c, 1);	//write the data into pipe
    			}
-  		while (read(cgi_output[0], &c, 1) > 0)		//there are some problems????????????????
-   			send(client, &c, 1, 0);
+  		while (read(cgi_output[0], &c, 1) > 0)		//try to understand that picture
+   			send(client, &c, 1, 0);		//send original data to client
 
   		close(cgi_output[0]);
   		close(cgi_input[1]);
@@ -484,7 +484,7 @@ void unimplemented(int client)	//only implement two method
 
 /**********************************************************************/
 
-int main(void)
+int main(void)	//I don't understand the relative about process and thread???????????????
 {
 	int server_sock = -1;	//server socket file descriptor
  	u_short port = 0;		//maybe just a integer type
